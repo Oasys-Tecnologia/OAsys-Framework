@@ -64,6 +64,10 @@ class Menu implements ILayout
             </div>
 
             <div class="topbar-actions">
+                <button type="button" class="topbar-icon-btn" onclick="App.getInstance().openRoute('sys_billing_creditos_show')" title="Créditos">
+                    <?= $this->renderIcon('wallet', 16) ?>
+                </button>
+
                 <span id="oasys-header-novidades-slot" class="header-novidades-slot">
                     <a id="oasys-novidades-link" class="header-novidades-link topbar-icon-btn" onclick="App.getInstance().openRoute('sys_atualizacao_portal_list')" title="Novidades">
                         <?= $this->renderIcon('megaphone', 16) ?>
