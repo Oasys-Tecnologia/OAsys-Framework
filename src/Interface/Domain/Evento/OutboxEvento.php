@@ -7,9 +7,9 @@ use Framework\Infrastructure\MVC\Model\Model;
 class OutboxEvento extends Model
 {
     protected ?int $id;
-    protected string $evento;
-    protected string $payload;
-    protected bool $publicado;
+    protected ?string $evento;
+    protected ?string $payload;
+    protected ?bool $publicado;
     protected ?string $dataCriacao;
     protected ?string $dataPublicacao;
 
@@ -33,22 +33,22 @@ class OutboxEvento extends Model
         $this->id = $id;
     }
 
-    public function getEvento(): string
+    public function getEvento(): ?string
     {
         return $this->evento;
     }
 
-    public function setEvento(string $evento): void
+    public function setEvento(?string $evento): void
     {
         $this->evento = $evento;
     }
 
-    public function getPayload(): string
+    public function getPayload(): ?string
     {
         return $this->payload;
     }
 
-    public function setPayload(string $payload): void
+    public function setPayload(?string $payload): void
     {
         $this->payload = $payload;
     }
@@ -58,12 +58,12 @@ class OutboxEvento extends Model
         return json_decode($this->payload, true) ?? [];
     }
 
-    public function isPublicado(): bool
+    public function isPublicado(): ?bool
     {
         return (bool) $this->publicado;
     }
 
-    public function setPublicado(bool $publicado): void
+    public function setPublicado(?bool $publicado): void
     {
         $this->publicado = $publicado;
     }
