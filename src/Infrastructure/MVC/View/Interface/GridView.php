@@ -32,6 +32,12 @@ abstract class GridView extends View
         $this->getViewComponent()->addAction($name, $label, $route, $httpMethod, $blank, $icon, $color);
     }
 
+    /** @see \Framework\Infrastructure\MVC\View\Components\Grid\Grid::setActionVisibleWhen() */
+    protected function setActionVisibleWhen(string $name, array $conditions): void
+    {
+        $this->getViewComponent()->setActionVisibleWhen($name, $conditions);
+    }
+
     protected function addDefaultActions($routeName, $add = true, $show = true, $edit = true, $delete = true, $changeStatus = false)
     {
         if ($add) {
