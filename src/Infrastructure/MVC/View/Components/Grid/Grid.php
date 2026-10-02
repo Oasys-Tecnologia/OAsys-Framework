@@ -109,6 +109,19 @@ class Grid implements IComponent
         $this->actions[] = ['route' => $route, 'name' => $name, 'label' => $label, 'httpMethod' => $httpMethod, 'blank' => $blank, 'icon' => $icon, 'color' => $color];
     }
 
+    /**
+     * Mostra a ação de linha só nas linhas que atendem a todas as condições.
+     * Cada condição: ['field' => campo da linha, 'values' => [valores aceitos]] ou ['field' => ..., 'notValues' => [valores recusados]].
+     */
+    public function setActionVisibleWhen(string $name, array $conditions): void
+    {
+        foreach ($this->actions as $i => $action) {
+            if ($action['name'] === $name) {
+                $this->actions[$i]['visibleWhen'] = $conditions;
+            }
+        }
+    }
+
     public function addGridAction($name, $label, $route, $httpMethod = 'GET', $icon = null,  $requiresSelection = null, $selectionParamName = null)
     {
         $this->gridActions[] = ['route' => $route, 'name' => $name, 'label' => $label, 'httpMethod' => $httpMethod, 'icon' => $icon, 'requiresSelection' => $requiresSelection, 'selectionParamName' => $selectionParamName];
