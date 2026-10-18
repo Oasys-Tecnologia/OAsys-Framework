@@ -108,12 +108,9 @@ class Autenticator
      */
     private static function getTokenFromHeaders()
     {
-        $headers = getallheaders();
-        if (isset($headers['oasys-token'])) {
-            $token = $headers['oasys-token'];
-            return $token;
-        }
-        return null;
+        // Nome de header não diferencia caixa: o PHP-FPM entrega "Oasys-Token" (o php -S entregava como veio).
+        $headers = array_change_key_case(getallheaders(), CASE_LOWER);
+        return $headers['oasys-token'] ?? null;
     }
 
 
