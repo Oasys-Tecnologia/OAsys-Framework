@@ -157,6 +157,10 @@ class Main
                     // as outras do mesmo usuário. Escrita em $_SESSION daqui em diante é descartada —
                     // quem precisar escrever chama Main::reabrirSessao() (ver ADR 0003 do ERP).
                     session_write_close();
+                    // Reabrir depois (Main::reabrirSessao) não pode reenviar cookie/cache headers: falharia
+                    // se já houve saída. O cookie já foi enviado no session_start() do index.php.
+                    ini_set('session.use_cookies', '0');
+                    ini_set('session.cache_limiter', '');
 
                     $oProcessing->process(self::$order);
                     $this->registrarRouteLog();

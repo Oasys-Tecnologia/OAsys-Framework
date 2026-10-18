@@ -88,11 +88,15 @@ class LoginController extends Controller
 
     public function logout()
     {
-        ob_clean();
+        // Sem buffer ativo, ob_clean() emite um notice na saída e impede os headers seguintes.
+        if (ob_get_level() > 0) {
+            ob_clean();
+        }
         // Logout é rota autenticada: o Main já fechou a sessão antes do controller.
         Main::reabrirSessao();
         unset($_SESSION['oasys-token']);
-        header('Location: /' . $_SESSION['cliente']);
+        // O tenant vem do subdomínio: "/" abre o login do próprio tenant ("/<tenant>" cairia em INVALID PATH).
+        header('Location: /');
         exit();
     }
 }
