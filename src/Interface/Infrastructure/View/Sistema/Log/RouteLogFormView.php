@@ -15,5 +15,6 @@ class RouteLogFormView extends FormView
         $this->addComponent(new FormField('rota/id', 'Rota ID', Field::TYPE_INTEGER));
         $this->addComponent(new FormField('rota/nome', 'Rota', Field::TYPE_TEXT));
         $this->addComponent(new FormField('data', 'Data', Field::TYPE_DATETIME));
+        $this->addComponent(new FormField('duracaoMs', 'Duração (ms)', Field::TYPE_INTEGER));
     }
 }

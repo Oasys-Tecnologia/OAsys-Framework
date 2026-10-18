@@ -153,6 +153,11 @@ class Main
                         $this->setUsuarioId($usuarioId);
                     }
 
+                    // Libera a trava do arquivo de sessão: sem isso, uma requisição lenta bloqueia todas
+                    // as outras do mesmo usuário. Escrita em $_SESSION daqui em diante é descartada —
+                    // quem precisar escrever chama Main::reabrirSessao() (ver ADR 0003 do ERP).
+                    session_write_close();
+
                     $oProcessing->process(self::$order);
                     $this->registrarRouteLog();
                     return;
@@ -185,6 +190,17 @@ class Main
         }
     }
 
+    /**
+     * Reabre a sessão para escrita depois do session_write_close() feito antes da rota autenticada.
+     * Feche de novo com session_write_close() se a requisição ainda for demorar.
+     */
+    public static function reabrirSessao(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+    }
+
     private function registrarRouteLog(): void
     {
         if (!self::$usuarioId) {
@@ -192,7 +208,10 @@ class Main
         }
 
         try {
-            $routeLog = new RouteLog(self::$usuarioId, self::$rota?->getId());
+            $duracaoMs = isset($_SERVER['REQUEST_TIME_FLOAT'])
+                ? (int) round((microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']) * 1000)
+                : null;
+            $routeLog = new RouteLog(self::$usuarioId, self::$rota?->getId(), $duracaoMs);
             (new RouteLogRepository(self::getConnection()))->save($routeLog);
         } catch (\Throwable) {
         }

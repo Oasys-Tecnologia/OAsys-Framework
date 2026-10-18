@@ -61,6 +61,8 @@ class LoginController extends Controller
         $oAutenticator = new Autenticator($xUsuario, $xSenha, $usuarioRepository);
 
         if ($sToken = $oAutenticator->generateToken()) {
+            // Login feito já com sessão autenticada: o Main fechou a sessão antes do controller.
+            Main::reabrirSessao();
             $_SESSION['oasys-token'] = $sToken;
 
             /** @var Usuario $usuario */
@@ -87,6 +89,8 @@ class LoginController extends Controller
     public function logout()
     {
         ob_clean();
+        // Logout é rota autenticada: o Main já fechou a sessão antes do controller.
+        Main::reabrirSessao();
         unset($_SESSION['oasys-token']);
         header('Location: /' . $_SESSION['cliente']);
         exit();
