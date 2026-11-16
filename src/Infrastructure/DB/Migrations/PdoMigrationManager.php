@@ -5,220 +5,289 @@ namespace Framework\Infrastructure\DB\Migrations;
 use Framework\Infrastructure\DB\Persistence\Storage\PdoStorage;
 
 /**
- * Classe que gerencia as execuções de atualizações na storage.
+ * Gerencia as migrations de UM banco.
+ *
+ * Dois formatos de arquivo convivem no mesmo diretório:
+ *   - legado:  0000000223.php                         classe version_0000000223
+ *   - atual:   2026_11_15_143000_cria_tabela_x.php    classe Migration_2026_11_15_143000_cria_tabela_x
+ * A ordem de execução é a ordem alfabética do nome do arquivo, então o legado vem sempre antes.
+ *
+ * Cada migration roda em transação junto do registro em oasys.migrations: se falhar, nada dela fica
+ * aplicado. Um advisory lock impede duas execuções simultâneas no mesmo banco.
  *
  * @since 16/03/2025
  * @author Iago Oliveira <prog.iago.oliveira@gmail.com>
  */
 final class PdoMigrationManager implements IMigration
 {
+    public const FORMATO_ATUAL = '/^\d{4}_\d{2}_\d{2}_\d{6}_[a-z0-9_]+$/';
+    private const FORMATO_LEGADO = '/^\d+$/';
+
+    /** Chave do advisory lock (o lock já é por banco). */
+    private const LOCK = 7241906;
+
     private $oStorage;
     private $migrationsDir;
+    /** @var callable */
+    private $log;
 
-    public function __construct(PdoStorage $oStorage, $migrationsDir)
+    /**
+     * @param callable|null $log recebe cada linha de saída; por padrão escreve na saída padrão.
+     */
+    public function __construct(PdoStorage $oStorage, $migrationsDir, ?callable $log = null)
     {
         $this->oStorage = $oStorage;
-        $this->migrationsDir = $migrationsDir;
+        $this->migrationsDir = rtrim($migrationsDir, '/');
+        $this->log = $log ?? static function (string $linha): void {
+            echo $linha . "\n";
+        };
     }
 
     /**
-     * Executa as alterações pertinentes da migration passada por parâmetro na storage.
-     * @param $migrationName
-     * @return void
+     * Executa a migration passada por parâmetro.
+     * @throws MigrationFalhou
      */
     public function up($migrationName = null)
     {
         $this->createMigrationsTableIfNotExists();
-        $executedMigrations = $this->getExecutedMigrations();
-        $sFile = $this->migrationsDir . '/' . $migrationName . '.php';
 
-        if (!file_exists($sFile)) {
-            echo "Migration '" . $migrationName . "' não encontrada.\n";
+        if (!$this->existe($migrationName)) {
+            $this->log("Migration '{$migrationName}' não encontrada.");
             return;
         }
 
-        if (!in_array($migrationName, $executedMigrations)) {
-            require_once $sFile;
-
-            $migrationClass = $this->getMigrationClassName($migrationName);
-            $migration = new $migrationClass($this->oStorage);
-            $migration->up();
-
-            $this->markMigrationAsExecuted($migrationName);
-            echo "Migration '$migrationName' executada com sucesso.\n";
+        if (in_array($migrationName, $this->getExecutedMigrations(), true)) {
+            $this->log("Migration '{$migrationName}' já foi executada.");
             return;
         }
 
-        echo "Migration '$migrationName' já foi executada.\n";
+        $this->comLock(fn() => $this->aplicar($migrationName));
     }
 
     /**
-     * Desfaz as alterações realizadas na storage pela migration passada por parâmetro.
-     * @param $migrationName
-     * @return void
+     * Desfaz a migration passada por parâmetro.
+     * @throws MigrationFalhou
      */
     public function down($migrationName = null)
     {
         $this->createMigrationsTableIfNotExists();
-        $executedMigrations = $this->getExecutedMigrations();
-        $sFile = $this->migrationsDir . '/' . $migrationName . '.php';
 
-        if (!file_exists($sFile)) {
-            echo "Migration '" . $migrationName . "' não encontrada.\n";
+        if (!$this->existe($migrationName)) {
+            $this->log("Migration '{$migrationName}' não encontrada.");
             return;
         }
 
-        if (!in_array($migrationName, $executedMigrations)) {
-            require_once $sFile;
-
-            $migrationClass = $this->getMigrationClassName($migrationName);
-            $migration = new $migrationClass($this->oStorage);
-
-            $migration->down();
-
-            $this->markMigrationAsRolledBack($migrationName);
-            echo "Migration '$migrationName' revertida com sucesso.\n";
+        if (!in_array($migrationName, $this->getExecutedMigrations(), true)) {
+            $this->log("Migration '{$migrationName}' ainda não foi executada.");
             return;
         }
 
-        echo "Migration '$migrationName' ainda não foi executada.\n";
+        $this->comLock(fn() => $this->reverter($migrationName));
     }
 
     /**
-     * Executa todas as migrations que ainda não foram executadas.
-     * @return void
+     * Executa, em ordem, todas as migrations pendentes. Para na primeira que falhar.
+     * @return string[] migrations executadas nesta chamada
+     * @throws MigrationFalhou
      */
-    public function runMigrations()
+    public function runMigrations(): array
     {
         $this->createMigrationsTableIfNotExists();
-        $executedMigrations = $this->getExecutedMigrations();
-        $migrationFiles = glob($this->migrationsDir . '/*.php');
-        $bExecuted = false;
 
-        foreach ($migrationFiles as $file) {
-            $migrationName = basename($file, '.php');
+        return $this->comLock(function () {
+            $executadas = [];
 
-            if (!in_array($migrationName, $executedMigrations)) {
-                $bExecuted = true;
-                require_once $file;
-
-                $migrationClass = $this->getMigrationClassName($migrationName);
-                $migration = new $migrationClass($this->oStorage);
-                $migration->up();
-
-                $this->markMigrationAsExecuted($migrationName);
-                echo "Migration '$migrationName' executada com sucesso.\n";
+            // Relido já com o lock: outra execução pode ter aplicado migrations enquanto esta esperava.
+            foreach ($this->pendentes() as $migrationName) {
+                $this->aplicar($migrationName);
+                $executadas[] = $migrationName;
             }
-        }
 
-        echo $bExecuted ? "Todas migrations disponíveis foram executadas.\n" : "Não existe nenhuma migration disponível parar ser executada.\n";
+            $this->log($executadas ? "Todas migrations disponíveis foram executadas." : "Não existe nenhuma migration disponível parar ser executada.");
+
+            return $executadas;
+        });
     }
 
     /**
-     * Remove todas as migrations executadas.
+     * Reverte as últimas migrations executadas.
      * @param int $iSteps - Quantidade de migrations a serem revertidas.
-     * @return void
+     * @throws MigrationFalhou
      */
     public function rollbackMigrations($iSteps = 1)
     {
         $this->createMigrationsTableIfNotExists();
-        $executedMigrations = $this->getExecutedMigrations();
-        $migrationsToRollback = array_slice(array_reverse($executedMigrations), 0, $iSteps);
-        $bExecuted = false;
 
-        foreach ($migrationsToRollback as $migrationName) {
-            $file = $this->migrationsDir . '/' . $migrationName . '.php';
+        $this->comLock(function () use ($iSteps) {
+            $revertidas = 0;
 
-            if (file_exists($file)) {
-                $bExecuted = true;
-                require_once $file;
-
-                $migrationClass = $this->getMigrationClassName($migrationName);
-                $migration = new $migrationClass($this->oStorage);
-
-                $migration->down();
-
-                $this->markMigrationAsRolledBack($migrationName);
-                echo "Migration '$migrationName' revertida com sucesso.\n";
+            foreach (array_slice(array_reverse($this->getExecutedMigrations()), 0, $iSteps) as $migrationName) {
+                if ($this->existe($migrationName)) {
+                    $this->reverter($migrationName);
+                    $revertidas++;
+                }
             }
-        }
 
-        echo $bExecuted ? "Foram revertidas as últimas {$iSteps} migrations executadas.\n" : "Nenhuma migration a ser revertida.\n";
+            $this->log($revertidas ? "Foram revertidas as últimas {$revertidas} migrations executadas." : "Nenhuma migration a ser revertida.");
+        });
     }
 
     /**
-     * Cria a tabela de controle de migrations caso ela não exista.
-     * @return void
+     * Migrations do diretório ainda não executadas neste banco, na ordem de execução.
+     * @return string[]
      */
+    public function pendentes(): array
+    {
+        $this->createMigrationsTableIfNotExists();
+
+        return array_values(array_diff($this->disponiveis(), $this->getExecutedMigrations()));
+    }
+
+    /**
+     * Migrations existentes no diretório, na ordem de execução.
+     * @return string[]
+     */
+    public function disponiveis(): array
+    {
+        $nomes = [];
+
+        foreach (glob($this->migrationsDir . '/*.php') ?: [] as $file) {
+            $nome = basename($file, '.php');
+
+            if (self::nomeValido($nome)) {
+                $nomes[] = $nome;
+            }
+        }
+
+        sort($nomes, SORT_STRING);
+
+        return $nomes;
+    }
+
+    public static function nomeValido(string $nome): bool
+    {
+        return preg_match(self::FORMATO_LEGADO, $nome) === 1 || preg_match(self::FORMATO_ATUAL, $nome) === 1;
+    }
+
+    public static function getMigrationClassName(string $migrationName): string
+    {
+        return (preg_match(self::FORMATO_LEGADO, $migrationName) === 1 ? 'version_' : 'Migration_') . $migrationName;
+    }
+
+    private function aplicar(string $migrationName): void
+    {
+        $migration = $this->instanciar($migrationName);
+
+        $this->emTransacao($migrationName, $migration, function () use ($migration, $migrationName) {
+            $migration->up();
+            $this->oStorage->exec("INSERT INTO oasys.migrations (migration) VALUES ('{$migrationName}')");
+        });
+
+        $this->log("Migration '{$migrationName}' executada com sucesso.");
+    }
+
+    private function reverter(string $migrationName): void
+    {
+        $migration = $this->instanciar($migrationName);
+
+        $this->emTransacao($migrationName, $migration, function () use ($migration, $migrationName) {
+            $migration->down();
+            $this->oStorage->exec("DELETE FROM oasys.migrations WHERE migration = '{$migrationName}'");
+        });
+
+        $this->log("Migration '{$migrationName}' revertida com sucesso.");
+    }
+
+    private function emTransacao(string $migrationName, IMigration $migration, callable $passo): void
+    {
+        $transacional = !method_exists($migration, 'emTransacao') || $migration->emTransacao();
+
+        try {
+            if ($transacional) {
+                $this->oStorage->beginTransaction();
+            }
+
+            $passo();
+
+            if ($transacional) {
+                $this->oStorage->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($this->oStorage->inTransaction()) {
+                $this->oStorage->rollback();
+            }
+
+            throw new MigrationFalhou($migrationName, $e);
+        }
+    }
+
+    private function instanciar(string $migrationName): IMigration
+    {
+        // O nome vai para SQL e para o nome de classe: só entra o que bate com um dos dois formatos.
+        if (!self::nomeValido($migrationName)) {
+            throw new \InvalidArgumentException("Nome de migration inválido: '{$migrationName}'.");
+        }
+
+        require_once $this->migrationsDir . '/' . $migrationName . '.php';
+
+        $classe = self::getMigrationClassName($migrationName);
+
+        if (!class_exists($classe, false)) {
+            throw new \RuntimeException("O arquivo '{$migrationName}.php' precisa declarar a classe '{$classe}'.");
+        }
+
+        return new $classe($this->oStorage);
+    }
+
+    private function existe($migrationName): bool
+    {
+        return is_string($migrationName)
+            && self::nomeValido($migrationName)
+            && file_exists($this->migrationsDir . '/' . $migrationName . '.php');
+    }
+
+    /**
+     * Roda o bloco segurando o advisory lock de migrations deste banco.
+     * Não espera: se outra execução está em andamento, falha na hora.
+     */
+    private function comLock(callable $bloco)
+    {
+        $obtido = $this->oStorage->query('SELECT pg_try_advisory_lock(' . self::LOCK . ') AS obtido');
+
+        if (!$obtido || !$obtido[0]['obtido']) {
+            throw new \RuntimeException('Já existe uma execução de migrations em andamento neste banco.');
+        }
+
+        try {
+            return $bloco();
+        } finally {
+            $this->oStorage->query('SELECT pg_advisory_unlock(' . self::LOCK . ')');
+        }
+    }
+
     private function createMigrationsTableIfNotExists()
     {
-        $this->createSchemaIfNotExists();
-        $sql = "CREATE TABLE IF NOT EXISTS oasys.migrations (
+        $this->oStorage->exec("CREATE SCHEMA IF NOT EXISTS oasys;");
+        $this->oStorage->exec("CREATE TABLE IF NOT EXISTS oasys.migrations (
             id serial4 PRIMARY KEY,
             migration VARCHAR(255) NOT NULL UNIQUE,
             executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )";
-
-        $this->oStorage->exec($sql);
+        )");
     }
 
     /**
-     * Cria o schema do framework caso ele não exista.
+     * Migrations já executadas, da mais antiga para a mais recente.
+     * @return string[]
      */
-    private function createSchemaIfNotExists()
+    private function getExecutedMigrations(): array
     {
-        $sql = "CREATE SCHEMA IF NOT EXISTS oasys;";
+        $migrations = $this->oStorage->query("SELECT migration FROM oasys.migrations ORDER BY executed_at ASC, id ASC");
 
-        $this->oStorage->exec($sql);
+        return is_array($migrations) ? array_column($migrations, 'migration') : [];
     }
 
-    /**
-     * Retorna todas as migrations já executadas.
-     * @return array|false
-     */
-    private function getExecutedMigrations()
+    private function log(string $linha): void
     {
-        $migrations = $this->oStorage->query("SELECT migration FROM oasys.migrations ORDER BY executed_at ASC");
-        $retorno = [];
-
-        if (is_array($migrations)) {
-            foreach ($migrations as $migration) {
-                $retorno[] = $migration['migration'];
-            }
-        }
-
-        return $retorno;
-    }
-
-    /**
-     * Marca a migration como executada.
-     * @param $migrationName
-     * @return void
-     */
-    private function markMigrationAsExecuted($migrationName)
-    {
-        $sql = "INSERT INTO oasys.migrations (migration) VALUES ('$migrationName')";
-        $this->oStorage->exec($sql);
-    }
-
-    /**
-     * Remove a migration das executadas.
-     * @param $migrationName
-     * @return void
-     */
-    private function markMigrationAsRolledBack($migrationName)
-    {
-        $sql = "DELETE FROM oasys.migrations WHERE migration = '$migrationName'";
-        $this->oStorage->exec($sql);
-    }
-
-    /**
-     * Retorna o nome da classe da migration conforme o nome do arquivo passado por parâmetro.
-     * @param $migrationName
-     * @return string
-     */
-    private function getMigrationClassName($migrationName)
-    {
-        return 'version_' . $migrationName;
+        ($this->log)($linha);
     }
 }
