@@ -18,14 +18,12 @@ class Autenticator
 {
     private string $login;
     private string $password;
-    private string $secretKey;
     private UsuarioRepository $repository;
 
     public function __construct(string $login, string $password, UsuarioRepository $respository)
     {
         $this->login = $login;
         $this->password = $password;
-        $this->secretKey = General::$SECRET_JWT;
         $this->repository = $respository;
     }
 
@@ -55,7 +53,7 @@ class Autenticator
             "usuario" => $this->login,
             "tempo_de_expiracao" => time() + 14400
         ];
-        $token = JWT::encode($dadosToken, $this->secretKey, 'HS256');
+        $token = JWT::encode($dadosToken, General::secretJwt(), 'HS256');
         return $token;
     }
 
@@ -121,7 +119,7 @@ class Autenticator
      */
     private static function validateToken($token)
     {
-        $jwtKey = new Key(General::$SECRET_JWT, 'HS256');
+        $jwtKey = new Key(General::secretJwt(), 'HS256');
         $options = new \stdClass();
         $options->algorithm = 'HS256';
 
