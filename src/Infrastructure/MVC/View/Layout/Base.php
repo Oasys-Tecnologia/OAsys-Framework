@@ -189,6 +189,7 @@ class Base implements ILayout
         <script src="$sBase/js/Components/MapaListaPanelComponent.js"></script>        <script src="$sBase/js/Components/CreditoPainelComponent.js"></script>
         <script src="$sBase/js/Components/DevolucaoPanelComponent.js"></script>
         <script src="$sBase/js/Components/VendaPanelComponent.js"></script>
+        <script src="$sBase/js/Components/BiPainelComponent.js"></script>
         <script src="$sBase/js/app.js"></script>
         <script src="$sBase/js/portal-atualizacoes-boot.js"></script>
         <script src="$sBase/js/avisos-sino.js"></script>
