@@ -5,7 +5,8 @@ namespace Framework\Infrastructure\MVC\View\Components\Bi;
 /**
  * Tabela com linhas hierárquicas (expansíveis), linha de total e exportação CSV.
  * Dados esperados:
- * `{ linhas: [{ <coluna>: valor, _filhos?: linha[], _destaque?: bool }], total?: { <coluna>: valor } }`
+ * `{ linhas: [{ <coluna>: valor, _filhos?: linha[], _destaque?: bool }], total?: { <coluna>: valor }, colunas?: [{name, label, formato}] }`
+ * `colunas` nos dados substitui as definidas aqui (ex.: uma coluna por mês do período).
  */
 class BiTabela extends BiWidget
 {
