@@ -51,7 +51,7 @@ class Autenticator
 
         $dadosToken = [
             "usuario" => $this->login,
-            "tempo_de_expiracao" => time() + 14400
+            "exp" => time() + 14400 // 4h; claim padrão, validado pelo php-jwt
         ];
         $token = JWT::encode($dadosToken, General::secretJwt(), 'HS256');
         return $token;
