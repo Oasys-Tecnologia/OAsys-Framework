@@ -27,6 +27,8 @@ class GridForm extends FormComponent
     protected $exibeControls;
     private $lazyAddCall;
     private $flex;
+    /** Sublinhas (fieldsets) já abertas ao renderizar, em vez de recolhidas atrás da seta. */
+    private bool $fieldsetsAbertos = false;
     /** @var list<array{title: string, handler: string, iconHtml?: string}> */
     protected array $rowActionButtons = [];
 
@@ -163,6 +165,11 @@ class GridForm extends FormComponent
         ];
     }
 
+    public function setFieldsetsAbertos(bool $abertos = true): void
+    {
+        $this->fieldsetsAbertos = $abertos;
+    }
+
     public function toArray(): array
     {
         if ($this->bDisabled) {
@@ -202,6 +209,7 @@ class GridForm extends FormComponent
                 'afterAddRow' => $this->afterAddRow,
                 'afterRemoveRow' => $this->afterRemoveRow,
                 'flex' => $this->flex,
+                'fieldsetsAbertos' => $this->fieldsetsAbertos,
                 'fieldsets' => array_map(
                     fn($fieldset) => array_map(
                         fn($oField) => $oField->toArray(),
