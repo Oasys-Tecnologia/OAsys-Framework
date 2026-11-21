@@ -265,6 +265,11 @@ class PdoStorage extends GenericStorage
         $this->pdo->rollBack();
     }
 
+    public function inTransaction(): bool
+    {
+        return $this->pdo->inTransaction();
+    }
+
     function executarArquivoSQL(string $caminhoArquivo): void
     {
         if (!file_exists($caminhoArquivo)) {
@@ -273,17 +278,26 @@ class PdoStorage extends GenericStorage
 
         $sql = file_get_contents($caminhoArquivo);
 
+        // Dentro de uma transação já aberta (migrations), quem abriu é quem commita ou desfaz.
+        $transacaoPropria = !$this->pdo->inTransaction();
+
         $this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 
         try {
-            $this->pdo->beginTransaction();
+            if ($transacaoPropria) {
+                $this->pdo->beginTransaction();
+            }
             $this->pdo->exec($sql);
-            $this->pdo->commit();
-            $this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
+            if ($transacaoPropria) {
+                $this->pdo->commit();
+            }
         } catch (PDOException $e) {
-            $this->pdo->rollBack();
-            $this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
+            if ($transacaoPropria) {
+                $this->pdo->rollBack();
+            }
             throw new \RuntimeException("Erro ao executar o script SQL: " . $e->getMessage());
+        } finally {
+            $this->pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
         }
     }
 }

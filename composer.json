@@ -17,5 +17,10 @@
     }
   },
   "minimum-stability": "dev",
-  "prefer-stable": true
+  "prefer-stable": true,
+  "autoload-dev": {
+    "psr-4": {
+      "Framework\\Tests\\": "tests/"
+    }
+  }
 }
