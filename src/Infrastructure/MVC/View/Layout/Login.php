@@ -27,7 +27,7 @@ class Login implements ILayout
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
             <meta name="robots" content="noindex">
-            <meta name="theme-color" content="#0A2540">
+            <meta name="theme-color" content="#0066CC">
             <title>Entrar · Oasys ERP</title>
             <link rel="icon" href="/assets/icon.png" sizes="512x512" type="image/png">
             <link rel="preload" href="/assets/central/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
@@ -142,9 +142,9 @@ class Login implements ILayout
 
             /* ---------- temas por produto (cores das telas aprovadas) ---------- */
             .login--erp {
-              --painel: #0a2540; --painel-texto: #d3e0ec; --barra: #30bbfd;
-              --botao: #0074b8; --botao-hover: #005182; --link: #0074b8;
-              --foco: #0094e9; --anel: rgba(0, 148, 233, .2); --anel-foco: rgba(0, 148, 233, .45);
+              --painel: #0066cc; --painel-texto: #e6f2ff; --barra: #30bbfd;
+              --botao: #0066cc; --botao-hover: #004b99; --link: #0066cc;
+              --foco: #0066cc; --anel: rgba(0, 102, 204, .18); --anel-foco: rgba(0, 102, 204, .45);
             }
             .login--chat {
               --painel: #0094e9; --painel-texto: #eaf6fe; --barra: #fff;
@@ -152,9 +152,9 @@ class Login implements ILayout
               --foco: #0074b8; --anel: rgba(0, 116, 184, .18); --anel-foco: rgba(0, 116, 184, .45);
             }
             .login--finance {
-              --painel: #005182; --painel-texto: #d3e6f3; --barra: #30bbfd;
-              --botao: #005182; --botao-hover: #0a2540; --link: #005182;
-              --foco: #005182; --anel: rgba(0, 81, 130, .18); --anel-foco: rgba(0, 81, 130, .45);
+              --painel: #0a2540; --painel-texto: #d3e0ec; --barra: #30bbfd;
+              --botao: #0074b8; --botao-hover: #005182; --link: #0074b8;
+              --foco: #0094e9; --anel: rgba(0, 148, 233, .2); --anel-foco: rgba(0, 148, 233, .45);
             }
             .login--sales {
               --painel: #d2691e; --painel-texto: #fff1e6; --barra: #fff;
