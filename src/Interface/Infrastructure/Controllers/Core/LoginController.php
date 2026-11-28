@@ -83,7 +83,7 @@ class LoginController extends Controller
             return;
         }
 
-        exit((new LoginView(['bUnauthorized' => true]))->renderLayout());
+        exit((new LoginView(['bUnauthorized' => true, 'sUsuario' => $xUsuario]))->renderLayout());
     }
 
     public function logout()
